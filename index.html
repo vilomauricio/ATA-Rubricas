@@ -1850,15 +1850,24 @@ button.cal-cell.cal-dl-lock{cursor:pointer;}
   <div class="pin-modal" style="max-width:400px;">
     <div class="pin-title">Cómo funciona el torneo</div>
     <div style="font-size:14px;color:var(--text);line-height:1.7;text-align:left;margin-top:4px;">
-      <p style="margin:0 0 10px;"><strong>🥇 Llave de Oro y 🥈 Llave de Plata</strong><br>El cuadro se arma por categoría, sembrando a cada jugador según su Ranking. Todos arrancan en la Llave de Oro: perder ahí no te elimina, te manda a la Llave de Plata para seguir compitiendo. Recién quedás afuera del torneo si perdés una segunda vez.</p>
+      <p style="margin:0 0 10px;"><strong>🥇 Llave de Oro y 🥈 Llave de Plata</strong><br>El cuadro se arma por categoría, sembrando a cada jugador según su Ranking o por sorteo. Todos juegan su primer partido en la Llave de Oro: si perdés, pasás a la Llave de Plata para seguir compitiendo.</p>
       <p style="margin:0 0 10px;"><strong>🏆 Campeones</strong><br>Habrá un campeón en la Llave de Oro y otro campeón en la Llave de Plata.</p>
       <p style="margin:0 0 6px;"><strong>⭐ Sumatoria de puntos</strong></p>
+      <p style="margin:0 0 4px;"><strong>Llave de Oro</strong></p>
+      <ul style="margin:0 0 10px;padding-left:20px;">
+        <li>Campeón: <strong>100</strong> puntos.</li>
+        <li>Finalista: <strong>90</strong> puntos.</li>
+        <li>Semifinalistas: <strong>80</strong> puntos.</li>
+        <li>Cuartos de final: <strong>70</strong> puntos.</li>
+        <li>Octavos de final: <strong>60</strong> puntos.</li>
+      </ul>
+      <p style="margin:0 0 4px;"><strong>Llave de Plata</strong></p>
       <ul style="margin:0;padding-left:20px;">
-        <li>Campeón Llave de Oro: <strong>100</strong> puntos.</li>
-        <li>Campeón Llave de Plata: <strong>75</strong> puntos.</li>
-        <li>Finalista Llave de Oro: <strong>50</strong> puntos.</li>
-        <li>Finalista Llave de Plata: <strong>40</strong> puntos.</li>
-        <li>El resto de los jugadores: <strong>25</strong> puntos por participar.</li>
+        <li>Campeón: <strong>70</strong> puntos.</li>
+        <li>Finalista: <strong>60</strong> puntos.</li>
+        <li>Semifinalistas: <strong>50</strong> puntos.</li>
+        <li>Cuartos de final: <strong>40</strong> puntos.</li>
+        <li>Octavos de final: <strong>30</strong> puntos.</li>
       </ul>
     </div>
     <div class="pin-actions"><button class="pin-btn pin-ok" onclick="closePizarraInfo()">Entendido</button></div>
@@ -2678,9 +2687,6 @@ function applyData(dataMatrix, infoMatrix, videosMatrix, adultsMatrix, matchesMa
     if(r[ADULT.categoria] && normCat(r[ADULT.categoria])===normCat(nombre)) return false;
     return true;
   }) : [];
-  // Ronda 10: el roster puede cambiar en cada refresco de datos — recalcular el ranking base
-  // resuelto (RANKING_SEED_RAW, nombres cortos -> nombres completos) la próxima vez que se use.
-  _rankingSeedCache=null;
   matchRows = (matchesMatrix && matchesMatrix.length) ? matchesMatrix.slice(1).filter(r=>(r[MATCH.jugadorA]&&r[MATCH.jugadorA].length>0)&&(r[MATCH.jugadorB]&&r[MATCH.jugadorB].length>0)) : [];
   // 'Torneos - Resultados' usa nombres cortos "Apellido I." en Ganador/Rival; los resolvemos contra
   // el roster de 'informacion adultos' para que el resto del código (que compara nombres completos) siga funcionando.
@@ -3681,8 +3687,8 @@ function h2hWinner(nameX,nameY,scopeMatches){
   return best ? (matchWinner(best)||null) : null;
 }
 // Comparador de ranking: 1) puntos, 2) enfrentamiento directo en la fase más avanzada, 3) récord G-P,
-// 4) posición del ranking base (Ronda 10, ver RANKING_SEED_RAW — solo desempata si AMBOS jugadores
-// tienen una posición de arranque cargada, para no reordenar jugadores nuevos entre sí), 5) nombre.
+// 4) nombre. (El desempate por posición de un ranking base, agregado en la Ronda 10, se sacó en la
+// Ronda 11 junto con RANKING_SEED_RAW — ahora todos los jugadores arrancan de cero.)
 function compareRanking(x,y,scopeMatches){
   if(y.pts!==x.pts) return y.pts-x.pts;
   const h2h=h2hWinner(x.name,y.name,scopeMatches);
@@ -3692,7 +3698,6 @@ function compareRanking(x,y,scopeMatches){
   }
   if(y.w-x.w) return y.w-x.w;
   if(x.l-y.l) return x.l-y.l;
-  if(x._seedPos!=null && y._seedPos!=null) return x._seedPos-y._seedPos;
   return x.name.localeCompare(y.name,'es');
 }
 function playerRecord(name,cat){
@@ -3714,10 +3719,6 @@ function rankingForCat(cat, cutoffIso){
   inscRows.forEach(r=>{ if(normCat(r[INSC.categoria])===normCat(cat)) names.add((r[INSC.jugador]||'').trim()); });
   const catMatches=matchRows.filter(m=>normCat(m[MATCH.categoria])===normCat(cat) && (!cutoffIso || (parseDate(m[MATCH.fecha])||'')<=cutoffIso));
   catMatches.forEach(m=>{ if(m[MATCH.jugadorA]) names.add(m[MATCH.jugadorA].trim()); if(m[MATCH.jugadorB]) names.add(m[MATCH.jugadorB].trim()); });
-  // Ronda 10: los jugadores del ranking base (RANKING_SEED_RAW) entran al ranking de su categoría
-  // aunque todavía no estén inscriptos en el torneo vigente ni tengan partidos cargados en la app.
-  const seed=rankingSeedFor(cat);
-  if(seed) Object.keys(seed).forEach(n=>names.add(n));
   const totals=categoryEditionPoints(cat, cutoffIso);
   const arr=[...names].filter(Boolean).map(n=>{
     let w=0,l=0,tot=0;
@@ -3727,7 +3728,7 @@ function rankingForCat(cat, cutoffIso){
       const win=matchWinner(m);
       if(win){ if(sameName(win,n)) w++; else l++; }
     });
-    return {name:n,w,l,p:tot,dec:w+l,pts:totals[n]||0,_seedPos:(seed&&seed[n]!=null)?seed[n].pos:null};
+    return {name:n,w,l,p:tot,dec:w+l,pts:totals[n]||0};
   });
   arr.sort((x,y)=>compareRanking(x,y,catMatches));
   return arr;
@@ -3783,7 +3784,7 @@ function buildRankingTab(){
      <span class="rank-pos">${i+1}</span>
      <div class="rank-name"><div class="rank-nm">${p.name}${sameName(p.name,currentPlayer)?' <span class="rank-you">VOS</span>':''}</div><div class="rank-rec">${p.w}-${p.l} · ${p.p} jugados</div></div>
      <span class="rank-pts">${p.pts}<small>pts</small></span></div>`).join('');
-  el.innerHTML=`<div class="nota">Ranking por <strong>resultado en los torneos</strong>: campeón de la Llave de Oro suma 100 puntos, campeón de la Llave de Plata 75, finalista de Oro 50, finalista de Plata 40, y el resto de los jugadores 25 por participar — sumando los puntos de cada edición de torneo jugada. En caso de empate en puntos, define el resultado entre ambos jugadores en la fase más avanzada que hayan disputado (Final &gt; Semifinal &gt; Cuartos de final &gt; 16avos &gt; 32avos).</div>
+  el.innerHTML=`<div class="nota">Ranking por <strong>resultado en los torneos</strong>: los puntos dependen de la ronda en la que quedaste eliminado. Llave de Oro: de 60 (Octavos de final) a 100 (Campeón). Llave de Plata (solo para quien pierde su primer partido en la Llave de Oro): de 30 (Octavos de final) a 70 (Campeón) — cuenta el logro más alto entre las dos llaves, no se suman. Se van sumando los puntos de cada edición de torneo jugada. En caso de empate en puntos, define el resultado entre ambos jugadores en la fase más avanzada que hayan disputado (Final &gt; Semifinal &gt; Cuartos de final &gt; 16avos &gt; 32avos).</div>
     <div class="card"><div class="card-title">Ranking · ${cat||'Sin categoría'}</div>
     <div class="rank-list">${rows||'<div class="empty">Sin partidos en esta categoría aún.</div>'}</div></div>`;
   ld.style.display='none'; el.style.display='block';
@@ -4020,159 +4021,104 @@ function resolveMatch(a, b, ctx){
   const loser=ctx.sameName(found.winner,a)?b:a;
   return {a,b,winner:found.winner,loser,played:true,isBye:false,fecha:found.fecha,resultado:found.resultado};
 }
-// Arma el cuadro completo para una lista de jugadores ya ordenada por semilla (players[0] =
-// semilla 1). ctx.findMatch(a,b) devuelve el SIGUIENTE partido aún no consumido entre a y b
-// (por fecha) y lo marca consumido — así una revancha (mismo cruce dos veces) toma el
-// partido cronológicamente siguiente en vez de repetir el mismo resultado.
+// Arma y resuelve un cuadro de eliminación simple a partir de un array de slots YA ARMADO (nombre |
+// null=BYE | undefined=pendiente), de tamaño potencia de 2. ctx.findMatch(a,b) devuelve el
+// SIGUIENTE partido aún no consumido entre a y b (por fecha) y lo marca consumido — así una
+// revancha (mismo cruce dos veces) toma el partido cronológicamente siguiente en vez de repetir
+// el mismo resultado.
+function runSingleElim(slots, ctx){
+  const size=slots.length;
+  const k=Math.log2(size);
+  const rounds=[];
+  let current=slots;
+  for(let r=0;r<k;r++){
+    const round=[];
+    for(let i=0;i<current.length;i+=2){
+      round.push(resolveMatch(current[i], current[i+1], ctx));
+    }
+    rounds.push(round);
+    current=round.map(m=>m.winner);
+  }
+  return { size, k, rounds, champion: current[0] };
+}
+// Arma los slots iniciales para una lista de jugadores ya ordenada por semilla (players[0] =
+// semilla 1), rellenando con BYE (null) las posiciones sin jugador real hasta la potencia de 2.
+function padSlots(players, size){
+  const order=seedOrder(size);
+  return order.map(seed=> seed<=players.length ? players[seed-1] : null);
+}
+// Arma el cuadro completo de una categoría: Llave de Oro (eliminación simple estándar, todos los
+// inscriptos) + Llave de Plata. RONDA 11: cambio de reglamento pedido por el usuario — la Llave de
+// Plata deja de "alimentarse" con los perdedores de TODAS las rondas de Oro (fusión ronda a ronda,
+// diseño original) y pasa a ser solo para quienes pierden su PRIMER partido de la Llave de Oro;
+// perder cualquier partido posterior de Oro elimina del torneo por completo, sin Plata. Con esto la
+// Llave de Plata es un segundo cuadro de eliminación simple, independiente, armado una única vez
+// con esos perdedores de ronda 1 (mismo `runSingleElim` que Oro, ya no hace falta el algoritmo de
+// fusión de rondas viejo).
 function buildBracket(players, ctx){
   const n=players.length;
   if(n<2) return null;
   const size=nextPow2(n);
-  const order=seedOrder(size);
-  const slots=order.map(seed=>players[seed-1]!==undefined ? players[seed-1] : null);
-  const k=Math.log2(size);
+  const goldSlots=padSlots(players, size);
+  const gold=runSingleElim(goldSlots, ctx);
 
-  const goldRounds=[];
-  const wbLosers=[];
-  let current=slots;
-  for(let r=0;r<k;r++){
-    const round=[]; const losers=[];
-    for(let i=0;i<current.length;i+=2){
-      const res=resolveMatch(current[i], current[i+1], ctx);
-      round.push(res);
-      if(!res.isBye) losers.push(res.loser);
-    }
-    goldRounds.push(round);
-    wbLosers.push(losers);
-    current=round.map(m=>m.winner);
+  const r1=gold.rounds[0]||[];
+  // Perdedores de ronda 1 de Oro únicamente (se excluyen los BYE: nadie fue eliminado ahí, no
+  // corresponde que entren a Plata). Un partido de ronda 1 todavía no jugado aporta `undefined`
+  // (posición de Plata "pendiente"), no un BYE, para no perder esa posición del cuadro de Plata.
+  const plataEntrants=r1.filter(m=>!m.isBye).map(m=>m.loser);
+  let silver=null;
+  if(plataEntrants.length>=2){
+    const pSize=nextPow2(plataEntrants.length);
+    const pOrder=seedOrder(pSize);
+    const silverSlots=pOrder.map(seed=> seed<=plataEntrants.length ? plataEntrants[seed-1] : null);
+    silver=runSingleElim(silverSlots, ctx);
+  } else if(plataEntrants.length===1 && plataEntrants[0]!==undefined){
+    // Con un solo perdedor de ronda 1 (cuadro de Oro de 2 jugadores) no hay nadie más con quien
+    // armar una Llave de Plata real: ese jugador queda directamente como campeón de Plata sin
+    // jugar (mismo criterio que ya tenía la app antes de la Ronda 11 para este caso puntual).
+    silver = { size:1, k:0, rounds:[], champion:plataEntrants[0] };
   }
-  const goldFinalist=current[0];
-
-  const silverRounds=[];
-  let silverFinalist;
-  if(k<=1){
-    silverFinalist = wbLosers[0] ? wbLosers[0][0] : undefined;
-  } else {
-    let survivors=wbLosers[0];
-    for(let j=1;j<k;j++){
-      const consRound=[]; const consSurv=[];
-      for(let i=0;i<survivors.length;i+=2){
-        const b = (i+1<survivors.length) ? survivors[i+1] : null;
-        const res=resolveMatch(survivors[i], b, ctx);
-        consRound.push(res); consSurv.push(res.winner);
-      }
-      silverRounds.push(consRound);
-      survivors=consSurv;
-
-      const incoming=wbLosers[j].slice().reverse();
-      const mergeRound=[]; const mergeSurv=[];
-      const m=Math.max(survivors.length, incoming.length);
-      for(let i=0;i<m;i++){
-        const a = i<survivors.length ? survivors[i] : null;
-        const b = i<incoming.length ? incoming[i] : null;
-        const res=resolveMatch(a, b, ctx);
-        mergeRound.push(res); mergeSurv.push(res.winner);
-      }
-      silverRounds.push(mergeRound);
-      survivors=mergeSurv;
-    }
-    silverFinalist=survivors[0];
-  }
-
-  return { size, k, slots, goldRounds, goldFinalist, silverRounds, silverFinalist };
+  return {
+    size, k:gold.k, slots:goldSlots,
+    goldRounds:gold.rounds, goldFinalist:gold.champion,
+    silverRounds: silver?silver.rounds:[], silverFinalist: silver?silver.champion:undefined
+  };
 }
-// Roles de una edición ya construida: campeón/finalista de cada llave. Desde la Ronda 9 cada
-// llave tiene su PROPIO campeón — ya no hay una Gran Final que las fusione en un título único
-// (goldFinalist/silverFinalist, pese al nombre histórico de la variable, YA SON los campeones).
-function bracketPlacements(br){
-  const goldChampion = br.goldFinalist || null;
-  const goldLast = br.goldRounds[br.goldRounds.length-1];
-  const goldFinalist = (goldLast && goldLast[0] && goldLast[0].loser) || null;
-  const plataChampion = br.silverFinalist || null;
-  let plataFinalist = null;
-  if(br.silverRounds.length){
-    const silverLast = br.silverRounds[br.silverRounds.length-1];
-    plataFinalist = (silverLast && silverLast[0] && silverLast[0].loser) || null;
-  }
-  return { goldChampion, goldFinalist, plataChampion, plataFinalist };
+// Puntos por ronda alcanzada (Ronda 11, reemplaza el modelo por roles fijos de la Ronda 9). En cada
+// llave los puntos dependen de en qué ronda quedó eliminado el jugador (o si fue campeón), bajando
+// de a 10 por cada ronda menos avanzada — Llave de Oro arranca en 100 (Campeón), Llave de Plata en
+// 70 (Campeón). Más allá de Octavos de final (cuadros muy grandes) se sigue el mismo patrón de -10,
+// con piso en 0.
+function roundPointsFromEnd(fromEnd, bracket){
+  const base = bracket==='oro' ? 100 : 70;
+  return Math.max(0, base - 10*(fromEnd+1));
 }
-// Puntos por resultado del torneo (Ronda 9, reemplaza el viejo modelo de +25 por victoria):
-// campeón de Oro 100, campeón de Plata 75, finalista de Oro 50, finalista de Plata 40, resto
-// 25 por participar. Si un jugador tiene más de un rol en la MISMA edición (ej. perdió la
-// final de Oro y después salió campeón de Plata), cuenta solo el de MAYOR valor — pedido
-// explícito del usuario, los roles no se suman entre sí.
-const PLACEMENT_PTS = { campeonOro:100, campeonPlata:75, finalistaOro:50, finalistaPlata:40, participante:25 };
-// Puntos de UNA edición de torneo, para los jugadores que ya jugaron al menos un partido ahí
-// (matchesForEdition). `players` es el roster completo usado para armar el cuadro (incluye
-// inscriptos sin partido jugado todavía, necesarios para la siembra/BYEs correctos) — pero
-// alguien sin ningún partido jugado en esta edición todavía no suma los 25 de participación
-// (así la categoría sigue "sin ranking" hasta que arranquen los resultados, ver buildCircuitoRanking).
-function editionPoints(players, ctx, matchesForEdition){
+// Puntos de TODOS los que perdieron algún partido en una llave (rounds = goldRounds o silverRounds),
+// más el campeón de esa llave.
+function bracketRoundPoints(rounds, champion, bracket){
   const pts={};
-  const playedNames=new Set();
-  matchesForEdition.forEach(m=>{ [m[MATCH.jugadorA],m[MATCH.jugadorB]].forEach(n=>{ n=(n||'').trim(); if(n) playedNames.add(n); }); });
-  playedNames.forEach(n=>{ pts[n]=PLACEMENT_PTS.participante; });
-  const br=buildBracket(players, ctx);
-  if(br){
-    const roles=bracketPlacements(br);
-    const give=(name,val)=>{ if(name && (pts[name]===undefined || val>pts[name])) pts[name]=val; };
-    give(roles.goldFinalist, PLACEMENT_PTS.finalistaOro);
-    give(roles.plataFinalist, PLACEMENT_PTS.finalistaPlata);
-    give(roles.plataChampion, PLACEMENT_PTS.campeonPlata);
-    give(roles.goldChampion, PLACEMENT_PTS.campeonOro);
-  }
+  const k=rounds.length;
+  rounds.forEach((round,i)=>{
+    const fromEnd=k-1-i;
+    round.forEach(m=>{ if(m.played && m.loser){ pts[m.loser]=roundPointsFromEnd(fromEnd, bracket); } });
+  });
+  if(champion) pts[champion] = (bracket==='oro'?100:70);
   return pts;
 }
-// Ronda 10 (3-sep-2026): ranking "de arranque" para categorías que ya tenían resultados jugados
-// antes de activar este sistema de puntos por resultado — el usuario pasó la posición y el puntaje
-// ya vigentes de cada categoría (según el mismo modelo de puntos de la Ronda 9: 100/75/50/40/25) para
-// que las ediciones de torneo que se carguen de acá en más SUMEN sobre esta base, en vez de arrancar
-// todos en cero. Las categorías Fem. no están acá a propósito: arrancan de cero, tal como pidió el
-// usuario. `pos` es solo para desempatar entre jugadores con el mismo puntaje (ver compareRanking) —
-// no afecta el puntaje que se muestra. Nombres en formato corto "Apellido I.", igual que el resto de
-// las hojas del Sheet; se resuelven contra el roster (informacion adultos) la primera vez que se usan.
-const RANKING_SEED_RAW = {
-  'Masc. A': {
-    'Perino G.':   {pos:1, pts:100},
-    'Rubiola A.':  {pos:2, pts:75},
-    'Silva A.':    {pos:3, pts:50},
-    'Ciancia D.':  {pos:4, pts:50},
-    'Moiso J.':    {pos:5, pts:25},
-    'Prunesti G.': {pos:6, pts:25},
-    'Aznaran S.':  {pos:7, pts:25}
-  },
-  'Masc. B': {
-    'Cordoba M.':  {pos:1, pts:100},
-    'Bravo J.':    {pos:2, pts:75},
-    'Brandana P.': {pos:3, pts:50},
-    'Medrano E.':  {pos:4, pts:50},
-    'Carnero R.':  {pos:5, pts:25},
-    'Medrano J.':  {pos:6, pts:25}
-  },
-  'Masc. C': {
-    'Ardiles J.':   {pos:1, pts:25},
-    'Belbruno J.':  {pos:2, pts:25},
-    'Dominguez M.': {pos:3, pts:25}
-  }
-};
-let _rankingSeedCache=null;
-// Resuelve RANKING_SEED_RAW (nombres cortos) contra el roster una sola vez y cachea el resultado —
-// devuelve {nombreCompleto:{pos,pts}} para la categoría pedida, o null si esa categoría no tiene ranking base.
-function rankingSeedFor(cat){
-  if(!_rankingSeedCache){
-    _rankingSeedCache={};
-    const nameCache=new Map();
-    Object.keys(RANKING_SEED_RAW).forEach(c=>{
-      const resolved={};
-      Object.keys(RANKING_SEED_RAW[c]).forEach(shortName=>{
-        const full=resolveShortName(shortName, nameCache);
-        resolved[full]=RANKING_SEED_RAW[c][shortName];
-      });
-      _rankingSeedCache[c]=resolved;
-    });
-  }
-  const key=Object.keys(_rankingSeedCache).find(c=>normCat(c)===normCat(cat));
-  return key ? _rankingSeedCache[key] : null;
+// Puntos de UNA edición de torneo. Si un jugador tiene resultado en las dos llaves (perdió su
+// primer partido de Oro y después siguió en Plata), cuenta solo el de MAYOR valor entre los dos —
+// pedido explícito del usuario, los resultados de las dos llaves no se suman.
+function editionPoints(players, ctx){
+  const br=buildBracket(players, ctx);
+  if(!br) return {};
+  const oroPts=bracketRoundPoints(br.goldRounds, br.goldFinalist, 'oro');
+  const plataPts=bracketRoundPoints(br.silverRounds, br.silverFinalist, 'plata');
+  const pts={};
+  const give=(name,val)=>{ if(name && (pts[name]===undefined || val>pts[name])) pts[name]=val; };
+  Object.keys(oroPts).forEach(n=>give(n, oroPts[n]));
+  Object.keys(plataPts).forEach(n=>give(n, plataPts[n]));
+  return pts;
 }
 // Puntos acumulados de una categoría, sumando el resultado de CADA edición de torneo jugada
 // (agrupadas por "id Torneo" en Torneos - Resultados) — pedido explícito del usuario: el
@@ -4182,25 +4128,18 @@ function rankingSeedFor(cat){
 // de siembra por defecto (igual que ya hace inscPlayersFor cuando no hay Ranking numérico
 // cargado) — sin la siembra original no se puede garantizar que el cuadro reconstruido sea
 // IDÉNTICO al que se jugó en su momento, es la mejor aproximación posible con los datos que
-// se conservan. Partidos sin "id Torneo" cargado (de antes de que existiera esa columna) no
-// se pueden agrupar en una edición confiable: solo suman participación, sin roles de campeón.
+// se conservan. RONDA 11: todos los jugadores arrancan de cero en todas las categorías (se sacó
+// el ranking base de la Ronda 10, RANKING_SEED_RAW) y ya no hay un puntaje fijo por "participar":
+// los partidos sin "id Torneo" cargado (de antes de que existiera esa columna) no se pueden
+// agrupar en una edición confiable, así que no suman puntos.
 function categoryEditionPoints(cat, cutoffIso){
   const catMatches=matchRows.filter(m=>normCat(m[MATCH.categoria])===normCat(cat) && (!cutoffIso || (parseDate(m[MATCH.fecha])||'')<=cutoffIso));
-  const ids = MATCH.idTorneo>=0 ? [...new Set(catMatches.map(m=>(m[MATCH.idTorneo]||'').trim()))] : [''];
+  const ids = MATCH.idTorneo>=0 ? [...new Set(catMatches.map(m=>(m[MATCH.idTorneo]||'').trim()).filter(Boolean))] : [];
   const curId=currentTorneoId(cat);
   const totals={};
-  // Ronda 10: arranca desde el ranking base de la categoría (si tiene uno cargado, ver
-  // RANKING_SEED_RAW) en vez de 0 — los resultados de los torneos siguientes se SUMAN sobre esta base.
-  const seed=rankingSeedFor(cat);
-  if(seed) Object.keys(seed).forEach(n=>{ totals[n]=seed[n].pts; });
   const add=(name,val)=>{ if(!name) return; totals[name]=(totals[name]||0)+val; };
   ids.forEach(id=>{
-    const editionMatches = MATCH.idTorneo>=0 ? catMatches.filter(m=>(m[MATCH.idTorneo]||'').trim()===id) : catMatches;
-    if(!id){
-      const seen=new Set();
-      editionMatches.forEach(m=>{ [m[MATCH.jugadorA],m[MATCH.jugadorB]].forEach(n=>{ n=(n||'').trim(); if(n && !seen.has(n)){ seen.add(n); add(n, PLACEMENT_PTS.participante); } }); });
-      return;
-    }
+    const editionMatches = catMatches.filter(m=>(m[MATCH.idTorneo]||'').trim()===id);
     let players;
     if(id===curId){
       players=inscPlayersFor(cat);
@@ -4209,7 +4148,7 @@ function categoryEditionPoints(cat, cutoffIso){
       editionMatches.forEach(m=>{ [m[MATCH.jugadorA],m[MATCH.jugadorB]].forEach(n=>{ n=(n||'').trim(); if(n && !seen.has(n)){ seen.add(n); players.push(n); } }); });
     }
     const ctx=bracketCtxFor(cat, id, cutoffIso);
-    const ep=editionPoints(players, ctx, editionMatches);
+    const ep=editionPoints(players, ctx);
     Object.keys(ep).forEach(n=>add(n, ep[n]));
   });
   return totals;
@@ -4225,13 +4164,6 @@ function pointsForPlayerInCat(cat, name, cutoffIso){
 function playerTotalPoints(name){
   const cats=new Set();
   matchRows.forEach(m=>{ if(sameName(m[MATCH.jugadorA],name)||sameName(m[MATCH.jugadorB],name)){ const c=(m[MATCH.categoria]||'').trim(); if(c) cats.add(c); } });
-  // Ronda 10: sumar también las categorías donde el jugador solo tiene ranking base todavía (sin
-  // ningún partido cargado en la app) — si no, "Mi resumen en torneos" mostraría 0 puntos pese a
-  // tener un ranking base vigente.
-  Object.keys(RANKING_SEED_RAW).forEach(c=>{
-    const seed=rankingSeedFor(c);
-    if(seed && Object.keys(seed).some(n=>sameName(n,name))) cats.add(c);
-  });
   let total=0;
   cats.forEach(c=>{ total+=pointsForPlayerInCat(c,name); });
   return total;
@@ -4286,15 +4218,14 @@ function pzInitials(name){
   return (parts.map(p=>p[0]).slice(0,2).join('')||'?').toUpperCase();
 }
 function pzRoundName(i, total, llave){
+  // Ronda 11: la Llave de Plata ahora es un cuadro de eliminación simple igual que la de Oro
+  // (antes tenía rondas de fusión sin nombre propio) — mismo esquema de nombres para ambas.
   const fromEnd=total-1-i;
-  if(llave==='oro'){
-    if(fromEnd===0) return 'Final de Oro';
-    if(fromEnd===1) return 'Semifinal';
-    if(fromEnd===2) return 'Cuartos de final';
-    if(fromEnd===3) return 'Octavos de final';
-    return `Ronda ${i+1}`;
-  }
-  if(fromEnd===0) return 'Final de Plata';
+  const tag = llave==='oro' ? 'Oro' : 'Plata';
+  if(fromEnd===0) return `Final de ${tag}`;
+  if(fromEnd===1) return 'Semifinal';
+  if(fromEnd===2) return 'Cuartos de final';
+  if(fromEnd===3) return 'Octavos de final';
   return `Ronda ${i+1}`;
 }
 function pzMatchHTML(m, seedOf){
@@ -4473,13 +4404,9 @@ function buildCircuitoTorneos(){
 }
 function buildCircuitoRanking(){
   const el=document.getElementById('circuito-content');
-  // Categorías de Ranking: fuente principal = "Torneos - Inscriptos" (allí se define qué categorías
-  // existen en cada edición del torneo) + las categorías con un ranking base cargado (Ronda 10,
-  // RANKING_SEED_RAW) aunque no tengan inscriptos en el torneo vigente — si no, ese chip ni aparecería.
-  const cats=[...new Set([
-    ...inscRows.map(r=>(r[INSC.categoria]||'').trim()),
-    ...Object.keys(RANKING_SEED_RAW)
-  ])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+  // Categorías de Ranking: "Torneos - Inscriptos" (allí se define qué categorías existen en cada
+  // edición del torneo).
+  const cats=[...new Set(inscRows.map(r=>(r[INSC.categoria]||'').trim()))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
   if(!cats.length){ el.innerHTML='<div class="empty">No hay categorías de torneos cargadas todavía.</div>'; return; }
 
   // Sin filtro "Todas": siempre hay una categoría específica activa.
